@@ -15,3 +15,7 @@ pip install -r requirements.txt
 ```bash
 FLASK_ENV=development FLASK_APP=app.py flask run
 ```
+
+## Endpoints
+
+<a href="https://documenter.getpostman.com/view/23270984/2s83zgu4xZ#9e8ff262-c823-4681-a9b7-aa2639b28438"> Postman Collection <a>
