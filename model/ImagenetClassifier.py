@@ -1,7 +1,6 @@
 import io
 import json
 from numpy import array
-from torchvision import models
 import torchvision
 import torchvision.transforms as transforms
 from PIL import Image
