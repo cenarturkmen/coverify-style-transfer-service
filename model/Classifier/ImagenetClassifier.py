@@ -8,7 +8,9 @@ from PIL import Image
 
 class ImagenetClassifier:
     def __init__(self) -> None:
-        self.imagenet_class_index = json.load(open("model/imagenet_class_index.json"))
+        self.imagenet_class_index = json.load(
+            open("model/Classifier/imagenet_class_index.json")
+        )
         self.model = torchvision.models.densenet121(
             weights=torchvision.models.DenseNet121_Weights.DEFAULT
         )

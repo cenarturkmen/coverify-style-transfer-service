@@ -1,9 +1,6 @@
-import base64
-from io import BytesIO
-from black import out
 from flask import Flask, jsonify, request
-from model.ImagenetClassifier import ImagenetClassifier
-from model.StyleTransfer import output
+from model.Classifier.ImagenetClassifier import ImagenetClassifier
+from model.StyleTransfer.StyleTransfer import transfer_style
 
 app = Flask(__name__)
 model = ImagenetClassifier()
@@ -16,18 +13,21 @@ def health():
 
 @app.route("/predict", methods=["POST"])
 def predict():
-    if request.method == "POST":
-        file = request.files["file"]
-        img_bytes = file.read()
-        class_id, class_name = model.get_prediction(image_bytes=img_bytes)
-        return jsonify({"class_id": class_id, "class_name": class_name})
+    file = request.files["file"]
+    img_bytes = file.read()
+    class_id, class_name = model.get_prediction(image_bytes=img_bytes)
+    return jsonify({"class_id": class_id, "class_name": class_name})
 
 
-@app.route("/transfer", methods=["GET"])
+@app.route("/transfer", methods=["POST"])
 def transfer():
-    # rint(outputTransformed)
-    print(output)
-    return "Zort"
+    content = request.files["content"]
+    style = request.files["style"]
+    content_bytes = content.read()
+    style_bytes = style.read()
+
+    output = transfer_style(content_bytes, style_bytes)
+    return jsonify({"img": output})
 
 
 if __name__ == "__main__":

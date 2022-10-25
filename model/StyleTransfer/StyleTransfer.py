@@ -1,3 +1,6 @@
+from model.StyleTransfer.ContentLoss import ContentLoss
+from model.StyleTransfer.StyleLoss import StyleLoss
+from model.StyleTransfer.Normalization import Normalization
 import base64
 from io import BytesIO
 
@@ -28,81 +31,10 @@ def image_loader(image_name):
     return image.to(device, torch.float)
 
 
-style_img = image_loader(
-    "/Users/caner/workspace/coverify-style-transfer-service/model/style.jpg"
-)
-
-content_img = image_loader(
-    "/Users/caner/workspace/coverify-style-transfer-service/model/dancing.jpeg"
-)
-
-# assert (
-#     style_img.size() == content_img.size()
-# ), "we need to import style and content images of the same size"
-
-
-class ContentLoss(nn.Module):
-    def __init__(
-        self,
-        target,
-    ):
-        super(ContentLoss, self).__init__()
-        # we 'detach' the target content from the tree used
-        # to dynamically compute the gradient: this is a stated value,
-        # not a variable. Otherwise the forward method of the criterion
-        # will throw an error.
-        self.target = target.detach()
-
-    def forward(self, input):
-        self.loss = F.mse_loss(input, self.target)
-        return input
-
-
-def gram_matrix(input):
-    a, b, c, d = input.size()  # a=batch size(=1)
-    # b=number of feature maps
-    # (c,d)=dimensions of a f. map (N=c*d)
-
-    features = input.view(a * b, c * d)  # resise F_XL into \hat F_XL
-
-    G = torch.mm(features, features.t())  # compute the gram product
-
-    # we 'normalize' the values of the gram matrix
-    # by dividing by the number of element in each feature maps.
-    return G.div(a * b * c * d)
-
-
-class StyleLoss(nn.Module):
-    def __init__(self, target_feature):
-        super(StyleLoss, self).__init__()
-        self.target = gram_matrix(target_feature).detach()
-
-    def forward(self, input):
-        G = gram_matrix(input)
-        self.loss = F.mse_loss(G, self.target)
-        return input
-
-
 cnn = models.vgg19(weights=models.VGG19_Weights.DEFAULT).features.to("cpu").eval()
 
 cnn_normalization_mean = torch.tensor([0.485, 0.456, 0.406]).to(device)
 cnn_normalization_std = torch.tensor([0.229, 0.224, 0.225]).to(device)
-
-# create a module to normalize input image so we can easily put it in a
-# nn.Sequential
-class Normalization(nn.Module):
-    def __init__(self, mean, std):
-        super(Normalization, self).__init__()
-        # .view the mean and std to make them [C x 1 x 1] so that they can
-        # directly work with image Tensor of shape [B x C x H x W].
-        # B is batch size. C is number of channels. H is height and W is width.
-        self.mean = torch.tensor(mean).view(-1, 1, 1)
-        self.std = torch.tensor(std).view(-1, 1, 1)
-
-    def forward(self, img):
-        # normalize img
-        return (img - self.mean) / self.std
-
 
 # desired depth layers to compute style/content losses :
 content_layers_default = ["conv_4"]
@@ -189,7 +121,7 @@ def run_style_transfer(
     content_img,
     style_img,
     input_img,
-    num_steps=300,
+    num_steps=10,
     style_weight=1000000,
     content_weight=1,
 ):
@@ -252,22 +184,36 @@ def run_style_transfer(
     return input_img
 
 
-input_img = content_img.clone()
+def transform_image(image_bytes):
+    loader = transforms.Compose(
+        [transforms.Resize(imsize), transforms.ToTensor()]  # scale imported image
+    )  # transform it into a torch tensor
 
-output = run_style_transfer(
-    cnn,
-    cnn_normalization_mean,
-    cnn_normalization_std,
-    content_img,
-    style_img,
-    input_img,
-)
+    image = Image.open(BytesIO(image_bytes))
+    # fake batch dimension required to fit network's input dimensions
+    image = loader(image).unsqueeze(0)
+    return image.to(device, torch.float)
 
-toPil = T.ToPILImage()(output.squeeze(0))
-print(toPil)
 
-buffered = BytesIO()
-toPil.save(buffered, format="JPEG")
-img_str = base64.b64encode(buffered.getvalue())
-img_base64 = bytes("data:image/jpeg;base64,", encoding="utf-8") + img_str
-print(img_base64)
+def transfer_style(content_img, style_img):
+    content_img = transform_image(content_img)
+    style_img = transform_image(style_img)
+
+    input_img = content_img.clone()
+
+    output = run_style_transfer(
+        cnn,
+        cnn_normalization_mean,
+        cnn_normalization_std,
+        content_img,
+        style_img,
+        input_img,
+    )
+
+    toPil = T.ToPILImage()(output.squeeze(0))
+    buffered = BytesIO()
+    toPil.save(buffered, format="JPEG")
+    img_str = base64.b64encode(buffered.getvalue())
+    img_base64 = bytes("data:image/jpeg;base64,", encoding="utf-8") + img_str
+
+    return img_base64.decode("utf-8")
