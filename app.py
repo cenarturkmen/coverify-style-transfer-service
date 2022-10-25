@@ -1,9 +1,10 @@
 from flask import Flask, jsonify, request
 from model.Classifier.ImagenetClassifier import ImagenetClassifier
-from model.StyleTransfer.StyleTransfer import transfer_style
+from model.StyleTransfer.StyleTransfer import StyleTransfer
 
 app = Flask(__name__)
 model = ImagenetClassifier()
+styleTransferModel = StyleTransfer()
 
 
 @app.route("/health", methods=["GET"])
@@ -26,7 +27,7 @@ def transfer():
     content_bytes = content.read()
     style_bytes = style.read()
 
-    output = transfer_style(content_bytes, style_bytes)
+    output = styleTransferModel.transfer_style(content_bytes, style_bytes)
     return jsonify({"img": output})
 
 
